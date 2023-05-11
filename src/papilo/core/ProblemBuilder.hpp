@@ -167,8 +167,7 @@ class ProblemBuilder
    {
       assert( lbs.size() == domains.lower_bounds.size() );
       for( int c = 0; c < (int) lbs.size(); ++c )
-         domains.lower_bounds[c] = std::move( lbs[c
-         ] );
+         domains.lower_bounds[c] = std::move( lbs[c] );
    }
 
    void
@@ -352,6 +351,39 @@ class ProblemBuilder
       }
    }
 
+   // Builds problem from triplets vector.
+   Problem<REAL>
+   buildFromTriplets( Vec<Triplet<REAL>>&& entries, bool isSorted = true,
+                      bool isColMajor = true )
+   {
+      Problem<REAL> problem;
+      const int nRows = lhs.size();
+      const int nColumns = obj.coefficients.size();
+
+      problem.setName( std::move( probname ) );
+
+      if( isColMajor )
+      {
+         problem.setConstraintMatrix( SparseStorage<REAL>{ std::move( entries ),
+                                                           nColumns, nRows,
+                                                           isSorted },
+                                      std::move( lhs ), std::move( rhs ),
+                                      std::move( rflags ), isColMajor );
+      }
+      else
+      {
+         problem.setConstraintMatrix( SparseStorage<REAL>{ std::move( entries ),
+                                                           nRows, nColumns,
+                                                           isSorted },
+                                      std::move( lhs ), std::move( rhs ),
+                                      std::move( rflags ), isColMajor );
+      }
+
+      buildNonMatrixParts(problem);
+
+      return problem;
+   }
+
    Problem<REAL>
    build()
    {
@@ -369,18 +401,7 @@ class ProblemBuilder
 
       matrix_buffer.clear();
 
-      problem.setObjective( std::move( obj ) );
-      problem.setVariableDomains( std::move( domains ) );
-      problem.setVariableNames( std::move( colnames ) );
-      problem.setConstraintNames( std::move( rownames ) );
-      ConstraintMatrix<REAL>& matrix = problem.getConstraintMatrix();
-      for(int i=0; i< problem.getNRows(); i++){
-         RowFlags rowFlag = matrix.getRowFlags()[i];
-         if( !rowFlag.test( RowFlag::kRhsInf ) &&
-             !rowFlag.test( RowFlag::kLhsInf ) &&
-             matrix.getLeftHandSides()[i] == matrix.getRightHandSides()[i] )
-            matrix.getRowFlags()[i].set(RowFlag::kEquation);
-      }
+      buildNonMatrixParts(problem);
 
       return problem;
    }
@@ -395,6 +416,24 @@ class ProblemBuilder
    Vec<String> rownames;
    Vec<String> colnames;
    String probname;
+
+   void
+   buildNonMatrixParts(Problem<REAL>& problem)
+   {
+	  problem.setObjective( std::move( obj ) );
+	  problem.setVariableDomains( std::move( domains ) );
+	  problem.setVariableNames( std::move( colnames ) );
+	  problem.setConstraintNames( std::move( rownames ) );
+	  ConstraintMatrix<REAL>& matrix = problem.getConstraintMatrix();
+	  for( int i = 0; i < problem.getNRows(); i++ )
+	  {
+	     RowFlags rowFlag = matrix.getRowFlags()[i];
+	     if( !rowFlag.test( RowFlag::kRhsInf ) &&
+	         !rowFlag.test( RowFlag::kLhsInf ) &&
+	         matrix.getLeftHandSides()[i] == matrix.getRightHandSides()[i] )
+	        matrix.getRowFlags()[i].set( RowFlag::kEquation );
+	  }
+   }
 };
 
 } // namespace papilo
